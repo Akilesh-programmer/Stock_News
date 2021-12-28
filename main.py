@@ -1,37 +1,12 @@
 import requests
+from twilio.rest import Client
 
 STOCK = "TSLA"
 COMPANY_NAME = "Tesla Inc"
 ALPHA_VANTAGE_API_KEY = "FJWEQ4X6LKA2QWNX"
 NEWS_API_KEY = "16847859bb1e4f719d1e72a014862c7a"
-
-# Change the date to today.
-
-# STEP 1: Use https://www.alphavantage.co
-# When STOCK price increase/decreases by 5% between yesterday and the day before yesterday then print("Get News").
-
-# STEP 2: Use https://newsapi.org
-# Instead of printing ("Get News"), actually get the first 3 news pieces for the COMPANY_NAME. 
-
-# STEP 3: Use https://www.twilio.com
-# Send a separate message with the percentage change and each article's title and description to your phone number.
-
-
-# Optional: Format the SMS message like this:
-"""
-TSLA: 🔺2%
-Headline: Were Hedge Funds Right About Piling Into Tesla Inc. (TSLA)?. 
-Brief: We at Insider Monkey have gone over 821 13F filings that hedge funds and prominent investors are required to file
- by the SEC The 13F filings show the funds' and investors' portfolio positions as of March 31st, near the height of the 
- coronavirus market crash.
-or
-"TSLA: 🔻5%
-Headline: Were Hedge Funds Right About Piling Into Tesla Inc. (TSLA)?. 
-Brief: We at Insider Monkey have gone over 821 13F filings that hedge funds and prominent investors are required to file
- by the SEC The 13F filings show the funds' and investors' portfolio positions as of March 31st, near the height of the 
- coronavirus market crash.
-"""
-
+ACCOUNT_SID = "ACda535cb235918e420d29b42c7deb39e8"
+AUTH_TOKEN = "ec515758f2ae07ec57700a4f9f50762e"
 
 parameters_1 = {
     "function": "TIME_SERIES_DAILY",
@@ -56,16 +31,18 @@ for thing in hundred_day_data["Time Series (Daily)"]:
         day_before_yesterday_data = hundred_day_data["Time Series (Daily)"][thing]
 
 percentage = None
+change = None
 
 if float(yesterday_data["4. close"]) > float(day_before_yesterday_data["4. close"]):
     difference = float(yesterday_data["4. close"]) - float(day_before_yesterday_data["4. close"])
     percentage = (difference / float(yesterday_data["4. close"])) * 100
+    change = "🔺"
 elif float(yesterday_data["4. close"]) < float(day_before_yesterday_data["4. close"]):
     difference = float(day_before_yesterday_data["4. close"]) - float(yesterday_data["4. close"])
     percentage = (difference / float(day_before_yesterday_data["4. close"])) * 100
+    change = "🔻"
 elif float(yesterday_data["4. close"]) == float(day_before_yesterday_data["4. close"]):
     percentage = 0
-
 
 get_news = False
 
@@ -77,9 +54,44 @@ parameters_2 = {
     "apiKey": NEWS_API_KEY
 }
 
+stock_news = []
+
 if get_news:
     response_2 = requests.get("https://newsapi.org/v2/everything", params=parameters_2)
     response_2.raise_for_status()
     news = response_2.json()["articles"]
     three_articles = news[:3]
-    print(three_articles)
+
+    first_article = {
+        "title": three_articles[0]["title"],
+        "description": three_articles[0]["description"]
+    }
+
+    second_article = {
+        "title": three_articles[1]["title"],
+        "description": three_articles[1]["description"]
+    }
+
+    third_article = {
+        "title": three_articles[2]["title"],
+        "description": three_articles[2]["description"]
+    }
+    stock_news.append(first_article)
+    stock_news.append(second_article)
+    stock_news.append(third_article)
+
+if get_news:
+    client = Client(ACCOUNT_SID, AUTH_TOKEN)
+    message = client.messages \
+        .create(
+            body=f"TSLA: {change} {int(percentage)}%\n\n"
+                 f"Headline: {stock_news[0]['title']}\n"
+                 f"Brief: {stock_news[0]['description']}\n\n"
+                 f"Headline: {stock_news[1]['title']}\n"
+                 f"Brief: {stock_news[1]['description']}\n\n"
+                 f"Headline: {stock_news[2]['title']}\n"
+                 f"Brief: {stock_news[2]['description']}\n\n",
+            from_="+19564462998",
+            to="+916379276131",
+              )
+    print(message.status)
